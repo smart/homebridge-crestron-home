@@ -4,11 +4,12 @@ import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
 import { CrestronHomeShade } from './CrestronHomeShade';
 import { CrestronHomeLight } from './CrestronHomeLight';
 import { CrestronHomeScene } from './CrestronHomeScene';
+import { CrestronHomeThermostat } from './CrestronHomeThermostat';
 
 
 import { CrestronClient, CrestronDevice } from './crestronClient';
 
-export interface CrestronAccessory{
+export interface CrestronAccessory {
   crestronId: number;
   updateState(device: CrestronDevice): void;
 }
@@ -77,7 +78,7 @@ export class CrestronHomePlatform implements DynamicPlatformPlugin {
 
     const crestronDevices = await this.crestronClient.getDevices(this.enabledTypes);
 
-    if(crestronDevices.length > 149){
+    if (crestronDevices.length > 149) {
       this.log.warn('Found more than 149 devices, Homebridge will crash - truncating to 149 !!!');
       crestronDevices.length = 149;
     }
@@ -124,7 +125,7 @@ export class CrestronHomePlatform implements DynamicPlatformPlugin {
         // create the accessory handler for the newly create accessory
         // this is imported from `platformAccessory.ts`
         // new CrestronHomePlatformAccessory(this, accessory);
-        if(this.createCrestronAccessory(accessory)){
+        if (this.createCrestronAccessory(accessory)) {
           // link the accessory to your platform
           this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
           this.accessories.push(accessory);
@@ -154,6 +155,9 @@ export class CrestronHomePlatform implements DynamicPlatformPlugin {
       case 'Scene':
         this.crestronDevices.push(new CrestronHomeScene(this, accessory));
         break;
+      case 'Thermostat':
+        this.crestronDevices.push(new CrestronHomeThermostat(this, accessory));
+        break;
       default:
         this.log.info('Unsupported accessory type:', accessory.context.device.type);
         break;
@@ -162,7 +166,7 @@ export class CrestronHomePlatform implements DynamicPlatformPlugin {
     return true;
   }
 
-  async updateDevices(){
+  async updateDevices() {
 
     this.log.info('Updating Devices state');
     const devices = await this.crestronClient.getDevices(this.enabledTypes);

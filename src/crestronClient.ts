@@ -13,6 +13,24 @@ type ShadeState = {
   position: number;
 };
 
+type ThermostatSetPoint = {
+  id: number;
+  setpoints: Array<{
+    type: 'Cool' | 'Heat' | 'Auto';
+    temperature: number;
+  }>;
+};
+
+type ThermostatMode = {
+  id: number;
+  mode: 'HEAT' | 'COOL' | 'AUTO' | 'OFF';
+};
+
+type ThermostatFanMode = {
+  id: number;
+  mode: 'AUTO' | 'ON';
+};
+
 type Room = {
   id: number;
   name: string;
@@ -26,7 +44,7 @@ type Scene = {
   status: boolean;
 };
 
-export interface CrestronDevice{
+export interface CrestronDevice {
   id: number;
   name: string;
   type: string;
@@ -36,6 +54,16 @@ export interface CrestronDevice{
   status: boolean;
   level: number;
   position: number;
+  // Thermostat-specific properties (match actual API response)
+  currentTemperature?: number; // In DeciFahrenheit (720 = 72.0°F)
+  currentMode?: string; // 'Cool', 'Heat', 'Auto', 'Off'
+  currentFanMode?: string; // 'Auto', 'On'
+  currentSetPoint?: Array<{ type: string; temperature: number }>; // Cool/Heat setpoints
+  temperatureUnits?: string; // 'DeciFahrenheit' or 'FahrenheitWholeDegrees'
+  schedulerState?: string; // 'run', 'hold'
+  availableFanModes?: string[];
+  availableSystemModes?: string[];
+  connectionStatus?: string;
 }
 
 export class CrestronClient {
@@ -55,7 +83,7 @@ export class CrestronClient {
   constructor(
     crestronHost: string,
     apiToken: string,
-    public readonly log: Logger ) {
+    public readonly log: Logger) {
 
     this.apiToken = apiToken;
 
@@ -76,18 +104,25 @@ export class CrestronClient {
         this.axiosClient.get('/scenes'),
         this.axiosClient.get('/devices'),
         this.axiosClient.get('/shades'),
+        this.axiosClient.get('/thermostats'),
       ]);
 
       this.rooms = crestronData[0].data.rooms;
 
 
-      for ( const device of crestronData[2].data.devices) {
+      for (const device of crestronData[2].data.devices) {
 
         const roomName = this.rooms.find(r => r.id === device.roomId)?.name;
         const deviceType = device.subType || device.type;
         let shadePosition = 0;
-        if(deviceType === 'Shade'){
+        let thermostatData: any = null;
+
+        if (deviceType === 'Shade') {
           shadePosition = crestronData[3].data.shades.find(sh => sh.id === device.id)?.position;
+        }
+
+        if (deviceType === 'Thermostat') {
+          thermostatData = crestronData[4].data.thermostats?.find(th => th.id === device.id);
         }
 
         const d: CrestronDevice = {
@@ -100,15 +135,25 @@ export class CrestronClient {
           level: device.level || 0,
           status: device.status || false,
           position: shadePosition || 0,
+          // Map actual thermostat API response to our interface
+          currentTemperature: thermostatData?.currentTemperature,
+          currentMode: thermostatData?.currentMode,
+          currentFanMode: thermostatData?.currentFanMode,
+          currentSetPoint: thermostatData?.currentSetPoint,
+          temperatureUnits: thermostatData?.temperatureUnits,
+          schedulerState: thermostatData?.schedulerState,
+          availableFanModes: thermostatData?.availableFanModes,
+          availableSystemModes: thermostatData?.availableSystemModes,
+          connectionStatus: thermostatData?.connectionStatus,
         };
 
-        if (enabledTypes.includes(deviceType)){
+        if (enabledTypes.includes(deviceType)) {
           devices.push(d);
         }
 
       }
 
-      for( const scene of crestronData[1].data.scenes){
+      for (const scene of crestronData[1].data.scenes) {
 
         const roomName = this.rooms.find(r => r.id === scene.roomId)?.name;
         const d: CrestronDevice = {
@@ -123,7 +168,7 @@ export class CrestronClient {
           position: 0,
         };
 
-        if (enabledTypes.includes('Scene')){
+        if (enabledTypes.includes('Scene')) {
           devices.push(d);
         }
       }
@@ -155,7 +200,7 @@ export class CrestronClient {
     }
   }
 
-  public async getShadeState(id: number){
+  public async getShadeState(id: number) {
 
     await this.login();
 
@@ -206,19 +251,19 @@ export class CrestronClient {
     }
   }
 
-  public async getScene(sceneId: number): Promise<Scene>{
+  public async getScene(sceneId: number): Promise<Scene> {
 
     await this.login();
     try {
       const response = await this.axiosClient.get(`/scenes/${sceneId}`);
       return response.data.scenes[0];
-    } catch (error){
+    } catch (error) {
       this.log.error('Unexpected error getting scene state: ', error);
-      throw(error);
+      throw (error);
     }
   }
 
-  public async recallScene(sceneId: number){
+  public async recallScene(sceneId: number) {
 
     await this.login();
     try {
@@ -234,11 +279,74 @@ export class CrestronClient {
     }
   }
 
+  public async getThermostatState(id: number) {
+    await this.login();
+
+    try {
+      const response = await this.axiosClient.get(`/thermostats/${id}`);
+      this.log.debug('Get Thermostat state:', response.data.thermostats);
+      return response.data.thermostats[0];
+    } catch (error) {
+      this.log.error('Error getting thermostat state: ', error);
+    }
+  }
+
+  public async setThermostatSetPoint(setPointData: ThermostatSetPoint) {
+    this.log.debug('Setting thermostat setpoint:', setPointData);
+
+    await this.login();
+    try {
+      const response = await this.axiosClient.post(
+        '/thermostats/SetPoint',
+        setPointData,
+      );
+      this.log.debug('Thermostat setpoint changed successfully: ', response.data);
+    } catch (error) {
+      this.log.error('Error setting thermostat setpoint:', error);
+    }
+  }
+
+  public async setThermostatMode(modeData: ThermostatMode) {
+    const payload = {
+      thermostats: [modeData],
+    };
+    this.log.debug('Setting thermostat mode:', payload);
+
+    await this.login();
+    try {
+      const response = await this.axiosClient.post(
+        '/thermostats/mode',
+        payload,
+      );
+      this.log.debug('Thermostat mode changed successfully: ', response.data);
+    } catch (error) {
+      this.log.error('Error setting thermostat mode:', error);
+    }
+  }
+
+  public async setThermostatFanMode(fanModeData: ThermostatFanMode) {
+    const payload = {
+      thermostats: [fanModeData],
+    };
+    this.log.debug('Setting thermostat fan mode:', payload);
+
+    await this.login();
+    try {
+      const response = await this.axiosClient.post(
+        '/thermostats/fanmode',
+        payload,
+      );
+      this.log.debug('Thermostat fan mode changed successfully: ', response.data);
+    } catch (error) {
+      this.log.error('Error setting thermostat fan mode:', error);
+    }
+  }
+
   public async login(): Promise<number> {
 
     this.log.debug('Starting login...');
 
-    if(new Date().getTime() - this.lastLogin < this.NINE_MINUTES_MILLIS ) {
+    if (new Date().getTime() - this.lastLogin < this.NINE_MINUTES_MILLIS) {
       this.log.debug('LOGIN: Session is still valid, doing nothing...');
       return this.lastLogin;
     }
