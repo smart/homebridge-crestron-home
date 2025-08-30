@@ -34,7 +34,8 @@
             "Dimmer",
             "Shade",
             "Scene",
-            "Thermostat"
+            "Thermostat",
+            "DoorLock"
           ]
         }
       },

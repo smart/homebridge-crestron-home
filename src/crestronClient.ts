@@ -31,6 +31,15 @@ type ThermostatFanMode = {
   mode: 'AUTO' | 'ON';
 };
 
+type DoorLock = {
+  id: number;
+  status: string; // 'locked' | 'unlocked'
+  type: string;
+  connectionStatus: string;
+  name: string;
+  roomId: number;
+};
+
 type Room = {
   id: number;
   name: string;
@@ -64,6 +73,9 @@ export interface CrestronDevice {
   availableFanModes?: string[];
   availableSystemModes?: string[];
   connectionStatus?: string;
+  // Door lock-specific properties
+  lockStatus?: string; // 'locked', 'unlocked', 'jammed', etc.
+  lockType?: string;
 }
 
 export class CrestronClient {
@@ -105,6 +117,7 @@ export class CrestronClient {
         this.axiosClient.get('/devices'),
         this.axiosClient.get('/shades'),
         this.axiosClient.get('/thermostats'),
+        this.axiosClient.get('/doorlocks').catch(e => ({ data: { doorLocks: [] } })), // Handle if endpoint doesn't exist
       ]);
 
       this.rooms = crestronData[0].data.rooms;
@@ -116,6 +129,7 @@ export class CrestronClient {
         const deviceType = device.subType || device.type;
         let shadePosition = 0;
         let thermostatData: any = null;
+        let doorLockData: any = null;
 
         if (deviceType === 'Shade') {
           shadePosition = crestronData[3].data.shades.find(sh => sh.id === device.id)?.position;
@@ -123,6 +137,10 @@ export class CrestronClient {
 
         if (deviceType === 'Thermostat') {
           thermostatData = crestronData[4].data.thermostats?.find(th => th.id === device.id);
+        }
+
+        if (deviceType === 'DoorLock' || deviceType === 'lock') {
+          doorLockData = crestronData[5].data.doorLocks?.find(dl => dl.id === device.id);
         }
 
         const d: CrestronDevice = {
@@ -144,7 +162,10 @@ export class CrestronClient {
           schedulerState: thermostatData?.schedulerState,
           availableFanModes: thermostatData?.availableFanModes,
           availableSystemModes: thermostatData?.availableSystemModes,
-          connectionStatus: thermostatData?.connectionStatus,
+          connectionStatus: thermostatData?.connectionStatus || doorLockData?.connectionStatus,
+          // Map door lock API response to our interface
+          lockStatus: doorLockData?.status,
+          lockType: doorLockData?.type,
         };
 
         if (enabledTypes.includes(deviceType)) {
@@ -169,6 +190,31 @@ export class CrestronClient {
         };
 
         if (enabledTypes.includes('Scene')) {
+          devices.push(d);
+        }
+      }
+
+      // Handle door locks from /doorlocks endpoint
+      for (const doorLock of crestronData[5].data.doorLocks || []) {
+
+        const roomName = this.rooms.find(r => r.id === doorLock.roomId)?.name;
+        const d: CrestronDevice = {
+          id: doorLock.id,
+          type: 'DoorLock',
+          subType: doorLock.type,
+          name: `${roomName} ${doorLock.name}`, // Name is "Room Name Lock Name"
+          roomId: doorLock.roomId,
+          roomName: roomName || '',
+          level: 0,
+          status: doorLock.status === 'locked',
+          position: 0,
+          // Map door lock properties
+          lockStatus: doorLock.status,
+          lockType: doorLock.type,
+          connectionStatus: doorLock.connectionStatus,
+        };
+
+        if (enabledTypes.includes('DoorLock')) {
           devices.push(d);
         }
       }
@@ -388,6 +434,44 @@ export class CrestronClient {
         this.log.error('Login unexpected error: ', error);
         return this.lastLogin;
       }
+    }
+  }
+
+  public async getDoorLockState(id: number) {
+    await this.login();
+
+    try {
+      const response = await this.axiosClient.get(`/doorlocks/${id}`);
+      this.log.debug('Get Door Lock state:', response.data.doorLocks);
+      return response.data.doorLocks[0];
+    } catch (error) {
+      this.log.error('Error getting door lock state: ', error);
+    }
+  }
+
+  public async lockDoor(id: number) {
+    this.log.debug('Locking door with ID:', id);
+
+    await this.login();
+    try {
+      const response = await this.axiosClient.post(`/doorlocks/lock/${id}`);
+      this.log.debug('Door locked successfully: ', response.data);
+      return response.data;
+    } catch (error) {
+      this.log.error('Error locking door:', error);
+    }
+  }
+
+  public async unlockDoor(id: number) {
+    this.log.debug('Unlocking door with ID:', id);
+
+    await this.login();
+    try {
+      const response = await this.axiosClient.post(`/doorlocks/unlock/${id}`);
+      this.log.debug('Door unlocked successfully: ', response.data);
+      return response.data;
+    } catch (error) {
+      this.log.error('Error unlocking door:', error);
     }
   }
 }

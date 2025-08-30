@@ -93,4 +93,42 @@ describe('CrestronClient', () => {
 
     expect(devices).toEqual(expectedDevices);
   });
+
+  it('should get door lock devices', async () => {
+    // Mock the login response
+    mockAxios.onGet('/login').reply(200, { authkey: 'auth-key', version: '1.0.0' });
+
+    // Mock the API calls with door lock data
+    mockAxios.onGet('/rooms').reply(200, { rooms: [{ id: 1, name: 'Living Room' }] });
+    mockAxios.onGet('/scenes').reply(200, { scenes: [] });
+    mockAxios.onGet('/devices').reply(200, {
+      devices: [{
+        id: 401, name: 'Front Door', type: 'lock', roomId: 1,
+        level: 0, status: false
+      }]
+    });
+    mockAxios.onGet('/shades').reply(200, { shades: [] });
+    mockAxios.onGet('/thermostats').reply(200, { thermostats: [] });
+    mockAxios.onGet('/doorlocks').reply(200, {
+      doorLocks: [{
+        id: 401, name: 'Front Door', status: 'locked', type: 'lock',
+        connectionStatus: 'online', roomId: 1
+      }]
+    });
+
+    const devices = await client.getDevices(['DoorLock']);
+
+    const expectedDevices = [
+      {
+        id: 401, level: 0, name: 'Living Room Front Door', position: 0, roomId: 1, roomName: 'Living Room',
+        status: true, subType: 'lock', type: 'DoorLock',
+        lockStatus: 'locked', lockType: 'lock', connectionStatus: 'online',
+        currentTemperature: undefined, currentMode: undefined, currentFanMode: undefined,
+        currentSetPoint: undefined, temperatureUnits: undefined, schedulerState: undefined,
+        availableFanModes: undefined, availableSystemModes: undefined
+      },
+    ];
+
+    expect(devices).toEqual(expectedDevices);
+  });
 });
