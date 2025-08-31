@@ -38,7 +38,7 @@ export class CrestronHomeDoorLock implements CrestronAccessory {
 
     // Initialize states from device context
     this.lockStates.LockCurrentState = this.crestronStatusToHomeKit(
-      accessory.context.device.lockStatus || 'unknown'
+      accessory.context.device.lockStatus || 'unknown',
     );
     this.lockStates.LockTargetState = this.lockStates.LockCurrentState ===
       this.platform.Characteristic.LockCurrentState.SECURED
@@ -102,7 +102,7 @@ export class CrestronHomeDoorLock implements CrestronAccessory {
     this.service.getCharacteristic(this.platform.Characteristic.LockCurrentState)
       .updateValue(this.lockStates.LockTargetState === this.platform.Characteristic.LockTargetState.SECURED
         ? this.platform.Characteristic.LockCurrentState.SECURED
-        : this.platform.Characteristic.LockCurrentState.UNSECURED
+        : this.platform.Characteristic.LockCurrentState.UNSECURED,
       );
 
     // Send command to Crestron
@@ -111,7 +111,7 @@ export class CrestronHomeDoorLock implements CrestronAccessory {
       await this.platform.crestronClient.lockDoor(this.crestronId);
       this.platform.log.debug('Locking door ->', this.accessory.displayName);
     } else {
-      // Unlock the door  
+      // Unlock the door
       await this.platform.crestronClient.unlockDoor(this.crestronId);
       this.platform.log.debug('Unlocking door ->', this.accessory.displayName);
     }

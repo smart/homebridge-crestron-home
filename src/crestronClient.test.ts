@@ -27,8 +27,8 @@ describe('CrestronClient', () => {
     mockAxios.onGet('/devices').reply(200, {
       devices: [{
         id: 201, name: 'Device 1', type: 'SubType', roomId: 1,
-        level: 50, status: true
-      }]
+        level: 50, status: true,
+      }],
     });
     mockAxios.onGet('/shades').reply(200, { shades: [] });
     mockAxios.onGet('/thermostats').reply(200, { thermostats: [] });
@@ -65,8 +65,8 @@ describe('CrestronClient', () => {
     mockAxios.onGet('/devices').reply(200, {
       devices: [{
         id: 301, name: 'Thermostat 1', type: 'Thermostat', roomId: 1,
-        level: 0, status: false
-      }]
+        level: 0, status: false,
+      }],
     });
     mockAxios.onGet('/shades').reply(200, { shades: [] });
     mockAxios.onGet('/thermostats').reply(200, {
@@ -75,7 +75,7 @@ describe('CrestronClient', () => {
         currentSetPoint: [{ type: 'cool', temperature: 700 }], temperatureUnits: 'DeciFahrenheit',
         schedulerState: 'run', availableFanModes: ['Auto', 'On'], availableSystemModes: ['Off', 'Cool', 'Heat'],
         connectionStatus: 'online',
-      }]
+      }],
     });
 
     const devices = await client.getDevices(['Thermostat']);
@@ -104,16 +104,16 @@ describe('CrestronClient', () => {
     mockAxios.onGet('/devices').reply(200, {
       devices: [{
         id: 401, name: 'Front Door', type: 'lock', roomId: 1,
-        level: 0, status: false
-      }]
+        level: 0, status: false,
+      }],
     });
     mockAxios.onGet('/shades').reply(200, { shades: [] });
     mockAxios.onGet('/thermostats').reply(200, { thermostats: [] });
     mockAxios.onGet('/doorlocks').reply(200, {
       doorLocks: [{
         id: 401, name: 'Front Door', status: 'locked', type: 'lock',
-        connectionStatus: 'online', roomId: 1
-      }]
+        connectionStatus: 'online', roomId: 1,
+      }],
     });
 
     const devices = await client.getDevices(['DoorLock']);
@@ -125,7 +125,7 @@ describe('CrestronClient', () => {
         lockStatus: 'locked', lockType: 'lock', connectionStatus: 'online',
         currentTemperature: undefined, currentMode: undefined, currentFanMode: undefined,
         currentSetPoint: undefined, temperatureUnits: undefined, schedulerState: undefined,
-        availableFanModes: undefined, availableSystemModes: undefined
+        availableFanModes: undefined, availableSystemModes: undefined,
       },
     ];
 

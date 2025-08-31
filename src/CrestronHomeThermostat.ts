@@ -189,7 +189,11 @@ export class CrestronHomeThermostat implements CrestronAccessory {
    * Handle requests to get the current value of the "Current Heating Cooling State" characteristic
    */
   getCurrentHeatingCoolingState(): CharacteristicValue {
-    this.platform.log.debug('Get Current Heating Cooling State for:', this.accessory.displayName, this.thermostatStates.CurrentHeatingCoolingState);
+    this.platform.log.debug(
+      'Get Current Heating Cooling State for:',
+      this.accessory.displayName,
+      this.thermostatStates.CurrentHeatingCoolingState,
+    );
     return this.thermostatStates.CurrentHeatingCoolingState;
   }
 
@@ -197,7 +201,11 @@ export class CrestronHomeThermostat implements CrestronAccessory {
    * Handle requests to get the current value of the "Target Heating Cooling State" characteristic
    */
   getTargetHeatingCoolingState(): CharacteristicValue {
-    this.platform.log.debug('Get Target Heating Cooling State for:', this.accessory.displayName, this.thermostatStates.TargetHeatingCoolingState);
+    this.platform.log.debug(
+      'Get Target Heating Cooling State for:',
+      this.accessory.displayName,
+      this.thermostatStates.TargetHeatingCoolingState,
+    );
     return this.thermostatStates.TargetHeatingCoolingState;
   }
 
@@ -222,7 +230,11 @@ export class CrestronHomeThermostat implements CrestronAccessory {
    * Handle requests to get the current value of the "Temperature Display Units" characteristic
    */
   getTemperatureDisplayUnits(): CharacteristicValue {
-    this.platform.log.debug('Get Temperature Display Units for:', this.accessory.displayName, this.thermostatStates.TemperatureDisplayUnits);
+    this.platform.log.debug(
+      'Get Temperature Display Units for:',
+      this.accessory.displayName,
+      this.thermostatStates.TemperatureDisplayUnits,
+    );
     return this.thermostatStates.TemperatureDisplayUnits;
   }
 

@@ -31,19 +31,29 @@ type ThermostatFanMode = {
   mode: 'AUTO' | 'ON';
 };
 
-type DoorLock = {
-  id: number;
-  status: string; // 'locked' | 'unlocked'
-  type: string;
-  connectionStatus: string;
-  name: string;
-  roomId: number;
-};
 
 type Room = {
   id: number;
   name: string;
 };
+
+interface ThermostatData {
+  currentTemperature?: number; // In DeciFahrenheit (720 = 72.0°F)
+  currentMode?: string; // 'Cool', 'Heat', 'Auto', 'Off'
+  currentFanMode?: string; // 'Auto', 'On'
+  currentSetPoint?: Array<{ type: string; temperature: number }>; // Cool/Heat setpoints
+  temperatureUnits?: string; // 'DeciFahrenheit' or 'FahrenheitWholeDegrees'
+  schedulerState?: string; // 'run', 'hold'
+  availableFanModes?: string[];
+  availableSystemModes?: string[];
+  connectionStatus?: string;
+}
+
+interface DoorLockData {
+  status?: string;
+  type?: string;
+  connectionStatus?: string;
+}
 
 type Scene = {
   id: number;
@@ -117,7 +127,7 @@ export class CrestronClient {
         this.axiosClient.get('/devices'),
         this.axiosClient.get('/shades'),
         this.axiosClient.get('/thermostats'),
-        this.axiosClient.get('/doorlocks').catch(e => ({ data: { doorLocks: [] } })), // Handle if endpoint doesn't exist
+        this.axiosClient.get('/doorlocks').catch(() => ({ data: { doorLocks: [] } })), // Handle if endpoint doesn't exist
       ]);
 
       this.rooms = crestronData[0].data.rooms;
@@ -128,8 +138,8 @@ export class CrestronClient {
         const roomName = this.rooms.find(r => r.id === device.roomId)?.name;
         const deviceType = device.subType || device.type;
         let shadePosition = 0;
-        let thermostatData: any = null;
-        let doorLockData: any = null;
+        let thermostatData: ThermostatData | null = null;
+        let doorLockData: DoorLockData | null = null;
 
         if (deviceType === 'Shade') {
           shadePosition = crestronData[3].data.shades.find(sh => sh.id === device.id)?.position;
