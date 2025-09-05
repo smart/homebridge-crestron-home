@@ -39,7 +39,7 @@ export class CrestronHomeThermostat implements CrestronAccessory {
 
     this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.name);
 
-    // Initialize states from device context - convert from DeciFahrenheit to Celsius
+    // Initialize states from device context - convert from DeciFahrenheit to Celsius for HomeKit
     this.thermostatStates.CurrentTemperature = this.deciFahrenheitToCelsius(accessory.context.device.currentTemperature || 720);
 
     // Get target temperature from currentSetPoint array (Cool or Heat)
@@ -57,8 +57,8 @@ export class CrestronHomeThermostat implements CrestronAccessory {
       accessory.context.device.currentMode || 'Off', false,
     );
 
-    // Temperature units: 0 = Celsius, 1 = Fahrenheit (we'll convert to Celsius for HomeKit)
-    this.thermostatStates.TemperatureDisplayUnits = 0; // Always use Celsius for HomeKit
+    // Temperature units: 0 = Celsius, 1 = Fahrenheit (HomeKit needs Celsius internally)
+    this.thermostatStates.TemperatureDisplayUnits = 1; // Display in Fahrenheit but send Celsius to HomeKit
 
     // register handlers for the Current Temperature Characteristic (read-only)
     this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
@@ -94,11 +94,11 @@ export class CrestronHomeThermostat implements CrestronAccessory {
         ],
       });
 
-    // Set temperature range (in Celsius)
+    // Set temperature range (in Celsius for HomeKit, but will display as Fahrenheit)
     this.service.getCharacteristic(this.platform.Characteristic.TargetTemperature)
       .setProps({
         minValue: 10,
-        maxValue: 30,
+        maxValue: 32,
         minStep: 0.5,
       });
   }
@@ -106,7 +106,7 @@ export class CrestronHomeThermostat implements CrestronAccessory {
   public updateState(device: CrestronDevice): void {
     this.platform.log.debug('Updating Thermostat state:', this.accessory.displayName, device);
 
-    // Update current temperature (convert from DeciFahrenheit to Celsius)
+    // Update current temperature (convert from DeciFahrenheit to Celsius for HomeKit)
     if (device.currentTemperature !== undefined) {
       this.thermostatStates.CurrentTemperature = this.deciFahrenheitToCelsius(device.currentTemperature);
     }
@@ -162,7 +162,7 @@ export class CrestronHomeThermostat implements CrestronAccessory {
   async setTargetTemperature(value: CharacteristicValue) {
     this.thermostatStates.TargetTemperature = value as number;
 
-    // Convert Celsius to DeciFahrenheit for Crestron API
+    // Convert Celsius (from HomeKit) to DeciFahrenheit for Crestron API
     const tempInDeciFahrenheit = this.celsiusToDeciFahrenheit(this.thermostatStates.TargetTemperature);
 
     // Determine setpoint type based on current mode
@@ -249,7 +249,23 @@ export class CrestronHomeThermostat implements CrestronAccessory {
   }
 
   /**
+   * Convert DeciFahrenheit (Crestron format) to Fahrenheit (HomeKit format)
+   */
+  private deciFahrenheitToFahrenheit(deciFahrenheit: number): number {
+    const fahrenheit = deciFahrenheit / 10;
+    return Math.round(fahrenheit * 10) / 10; // Round to 1 decimal place
+  }
+
+  /**
+   * Convert Fahrenheit (HomeKit format) to DeciFahrenheit (Crestron format)
+   */
+  private fahrenheitToDeciFahrenheit(fahrenheit: number): number {
+    return Math.round(fahrenheit * 10); // Convert to DeciFahrenheit
+  }
+
+  /**
    * Convert DeciFahrenheit (Crestron format) to Celsius (HomeKit format)
+   * Keeping for compatibility if needed
    */
   private deciFahrenheitToCelsius(deciFahrenheit: number): number {
     const fahrenheit = deciFahrenheit / 10;
@@ -259,6 +275,7 @@ export class CrestronHomeThermostat implements CrestronAccessory {
 
   /**
    * Convert Celsius (HomeKit format) to DeciFahrenheit (Crestron format)
+   * Keeping for compatibility if needed
    */
   private celsiusToDeciFahrenheit(celsius: number): number {
     const fahrenheit = (celsius * 9 / 5) + 32;

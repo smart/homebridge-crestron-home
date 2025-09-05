@@ -31,6 +31,11 @@ type ThermostatFanMode = {
   mode: 'AUTO' | 'ON';
 };
 
+type SecuritySystemState = {
+  id: number;
+  state: 'Disarmed' | 'ArmStay' | 'ArmAway' | 'ArmInstant';
+};
+
 
 type Room = {
   id: number;
@@ -53,6 +58,13 @@ interface DoorLockData {
   status?: string;
   type?: string;
   connectionStatus?: string;
+}
+
+interface SecurityDeviceData {
+  availableStates?: string[]; // e.g., ["Alarm", "ArmAway", "ArmInstant", "ArmStay", "Disarmed", "EntryDelay", "ExitDelay", "Fire"]
+  currentState?: string; // e.g., "Disarmed", "ArmAway", "Alarm", etc.
+  connectionStatus?: string;
+  roomId?: number;
 }
 
 type Scene = {
@@ -86,6 +98,9 @@ export interface CrestronDevice {
   // Door lock-specific properties
   lockStatus?: string; // 'locked', 'unlocked', 'jammed', etc.
   lockType?: string;
+  // Security system-specific properties
+  securityCurrentState?: string; // 'Disarmed', 'ArmAway', 'ArmStay', 'Alarm', 'Fire', etc.
+  securityAvailableStates?: string[]; // Available security states
 }
 
 export class CrestronClient {
@@ -128,9 +143,19 @@ export class CrestronClient {
         this.axiosClient.get('/shades'),
         this.axiosClient.get('/thermostats'),
         this.axiosClient.get('/doorlocks').catch(() => ({ data: { doorLocks: [] } })), // Handle if endpoint doesn't exist
+        this.axiosClient.get('/securitydevices').catch(() => ({ data: { securityDevices: [] } })), // Handle if endpoint doesn't exist
       ]);
 
       this.rooms = crestronData[0].data.rooms;
+
+      // Debug logging for device discovery
+      this.log.info('🔍 DEVICE DISCOVERY SUMMARY:');
+      this.log.info('- Total devices:', crestronData[2].data.devices?.length || 0);
+      this.log.info('- Total thermostats from API:', crestronData[4].data.thermostats?.length || 0);
+      this.log.info('- Total scenes:', crestronData[1].data.scenes?.length || 0);
+      this.log.info('- Total shades:', crestronData[3].data.shades?.length || 0);
+      this.log.info('- Total security devices from API:', crestronData[6].data.securityDevices?.length || 0);
+      this.log.info('- Enabled types in config:', enabledTypes.join(', '));
 
 
       for (const device of crestronData[2].data.devices) {
@@ -140,17 +165,38 @@ export class CrestronClient {
         let shadePosition = 0;
         let thermostatData: ThermostatData | null = null;
         let doorLockData: DoorLockData | null = null;
+        let securityDeviceData: SecurityDeviceData | null = null;
+
+        // Debug logging for each device
+        if (deviceType === 'Thermostat' || deviceType === 'thermostat') {
+          this.log.info(`🌡️ Found thermostat device: ID=${device.id}, name="${device.name}", room="${roomName}", type="${deviceType}"`);
+        }
+        if (deviceType === 'security Device') {
+          this.log.info(`🔒 Found security device: ID=${device.id}, name="${device.name}", room="${roomName}", type="${deviceType}"`);
+        }
 
         if (deviceType === 'Shade') {
           shadePosition = crestronData[3].data.shades.find(sh => sh.id === device.id)?.position;
         }
 
-        if (deviceType === 'Thermostat') {
+        if (deviceType === 'Thermostat' || deviceType === 'thermostat') {
           thermostatData = crestronData[4].data.thermostats?.find(th => th.id === device.id);
+          this.log.debug(`Thermostat matching: deviceID=${device.id}, foundThermostatData=${!!thermostatData}`);
+          if (thermostatData) {
+            this.log.debug('Thermostat data:', JSON.stringify(thermostatData, null, 2));
+          }
         }
 
         if (deviceType === 'DoorLock' || deviceType === 'lock') {
           doorLockData = crestronData[5].data.doorLocks?.find(dl => dl.id === device.id);
+        }
+
+        if (deviceType === 'security Device') {
+          securityDeviceData = crestronData[6].data.securityDevices?.find(sd => sd.id === device.id);
+          this.log.info(`🔒 Security device matching: deviceID=${device.id}, foundSecurityData=${!!securityDeviceData}`);
+          if (securityDeviceData) {
+            this.log.info('🔒 Security device data:', JSON.stringify(securityDeviceData, null, 2));
+          }
         }
 
         const d: CrestronDevice = {
@@ -176,10 +222,27 @@ export class CrestronClient {
           // Map door lock API response to our interface
           lockStatus: doorLockData?.status,
           lockType: doorLockData?.type,
+          // Map security device API response to our interface
+          securityCurrentState: securityDeviceData?.currentState,
+          securityAvailableStates: securityDeviceData?.availableStates,
         };
 
-        if (enabledTypes.includes(deviceType)) {
+        // Check if device type is enabled (handle special cases)
+        const isEnabled = enabledTypes.includes(deviceType) ||
+          (deviceType === 'thermostat' && enabledTypes.includes('Thermostat')) ||
+          (deviceType === 'security Device' && enabledTypes.includes('SecuritySystem'));
+        if (isEnabled) {
           devices.push(d);
+          if (deviceType === 'Thermostat' || deviceType === 'thermostat') {
+            this.log.info(`✅ Added thermostat to devices list: ${d.name}`);
+          }
+          if (deviceType === 'security Device') {
+            this.log.info(`✅ Added security device to devices list: ${d.name}`);
+          }
+        } else if (deviceType === 'Thermostat' || deviceType === 'thermostat') {
+          this.log.info(`⚠️ Thermostat found but not enabled in config: ${d.name}`);
+        } else if (deviceType === 'security Device') {
+          this.log.info(`⚠️ Security device found but not enabled in config: ${d.name}`);
         }
 
       }
@@ -395,6 +458,28 @@ export class CrestronClient {
       this.log.debug('Thermostat fan mode changed successfully: ', response.data);
     } catch (error) {
       this.log.error('Error setting thermostat fan mode:', error);
+    }
+  }
+
+  public async setSecuritySystemState(securityStateData: SecuritySystemState) {
+    this.log.debug('Setting security system state:', securityStateData);
+    this.log.info(`🔒 SECURITY API: Changing security system ID ${securityStateData.id} to "${securityStateData.state}"`);
+
+    await this.login();
+    try {
+      // Based on Crestron API patterns, likely POST to /securitydevices/{id} with state
+      // Note: This follows the pattern seen in other Crestron APIs but hasn't been tested
+      const response = await this.axiosClient.post(
+        `/securitydevices/${securityStateData.id}`,
+        {
+          state: securityStateData.state,
+        },
+      );
+      this.log.info(`✅ SECURITY API: Security system state changed successfully to "${securityStateData.state}"`);
+      this.log.debug('Security system API response:', response.data);
+    } catch (error) {
+      this.log.error(`❌ SECURITY API: Error setting security system state to "${securityStateData.state}":`, error);
+      throw error;
     }
   }
 

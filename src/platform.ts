@@ -6,6 +6,7 @@ import { CrestronHomeLight } from './CrestronHomeLight';
 import { CrestronHomeScene } from './CrestronHomeScene';
 import { CrestronHomeThermostat } from './CrestronHomeThermostat';
 import { CrestronHomeDoorLock } from './CrestronHomeDoorLock';
+import { CrestronHomeSecuritySystem } from './CrestronHomeSecuritySystem';
 
 
 import { CrestronClient, CrestronDevice } from './crestronClient';
@@ -157,11 +158,16 @@ export class CrestronHomePlatform implements DynamicPlatformPlugin {
         this.crestronDevices.push(new CrestronHomeScene(this, accessory));
         break;
       case 'Thermostat':
+      case 'thermostat': // Handle lowercase thermostat from Crestron API
         this.crestronDevices.push(new CrestronHomeThermostat(this, accessory));
         break;
       case 'DoorLock':
       case 'lock': // Handle both 'DoorLock' from our config and 'lock' from API
         this.crestronDevices.push(new CrestronHomeDoorLock(this, accessory));
+        break;
+      case 'SecuritySystem':
+      case 'security Device': // Handle Crestron API format
+        this.crestronDevices.push(new CrestronHomeSecuritySystem(this, accessory));
         break;
       default:
         this.log.info('Unsupported accessory type:', accessory.context.device.type);
